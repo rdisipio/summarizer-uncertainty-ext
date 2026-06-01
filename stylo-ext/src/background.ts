@@ -2,6 +2,14 @@ import type { ScoreResult, SentenceScore, SummaryResult } from "./types";
 
 const SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
 
+// chrome.tabs.sendMessage rejects if the content script isn't loaded yet
+// (e.g. tab was open before the extension was installed/reloaded). Safe to ignore.
+function sendToTab(tabId: number, msg: unknown) {
+  chrome.tabs.sendMessage(tabId, msg).catch((err: Error) => {
+    if (!err.message.includes("Receiving end does not exist")) throw err;
+  });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "summarize",
@@ -20,7 +28,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await chrome.storage.local.get(["openrouterKey", "scoringToken", "openrouterModel"]);
 
   if (!openrouterKey || !scoringToken) {
-    chrome.tabs.sendMessage(tab.id, {
+    sendToTab(tab.id, {
       type: "STYLO_ERROR",
       message: "API keys not configured. Open Stylo settings to add them.",
     });
@@ -29,29 +37,29 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   const model = (openrouterModel as string | undefined) ?? "google/gemini-2.5-flash-lite";
 
-  chrome.tabs.sendMessage(tab.id, { type: "STYLO_LOADING" });
+  sendToTab(tab.id, { type: "STYLO_LOADING" });
 
   let summary: string;
   try {
     summary = await fetchSummary(text, model, openrouterKey as string);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    chrome.tabs.sendMessage(tab.id, { type: "STYLO_ERROR", message });
+    sendToTab(tab.id, { type: "STYLO_ERROR", message });
     return;
   }
 
   // Show summary immediately — don't wait for scoring
   const result: SummaryResult = { source: text, summary, model };
-  chrome.tabs.sendMessage(tab.id, { type: "SHOW_SUMMARY", result });
+  sendToTab(tab.id, { type: "SHOW_SUMMARY", result });
 
   // Fetch score in background; send when ready (~10s)
   fetchScore(text, summary, scoringToken as string)
     .then((score) => {
-      chrome.tabs.sendMessage(tab.id!, { type: "UPDATE_SCORE", score });
+      sendToTab(tab.id!, { type: "UPDATE_SCORE", score });
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : "Scoring failed";
-      chrome.tabs.sendMessage(tab.id!, { type: "STYLO_ERROR", message });
+      sendToTab(tab.id!, { type: "STYLO_ERROR", message });
     });
 });
 
@@ -81,16 +89,16 @@ async function handleCompareRequest(source: string, tabId: number) {
     summary = await fetchSummary(source, model, openrouterKey as string);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Comparison failed";
-    chrome.tabs.sendMessage(tabId, { type: "STYLO_ERROR", message });
+    sendToTab(tabId, { type: "STYLO_ERROR", message });
     return;
   }
 
   const result: SummaryResult = { source, summary, model };
-  chrome.tabs.sendMessage(tabId, { type: "SHOW_COMPARISON", result });
+  sendToTab(tabId, { type: "SHOW_COMPARISON", result });
 
   fetchScore(source, summary, scoringToken as string)
     .then((score) => {
-      chrome.tabs.sendMessage(tabId, { type: "UPDATE_COMPARISON_SCORE", score });
+      sendToTab(tabId, { type: "UPDATE_COMPARISON_SCORE", score });
     })
     .catch(() => { /* scoring failure is non-fatal for comparison */ });
 }
@@ -103,11 +111,11 @@ async function handleSuggestEdits(source: string, summary: string, model: string
     revised = await fetchEdits(source, summary, model, openrouterKey as string);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Edits failed";
-    chrome.tabs.sendMessage(tabId, { type: "STYLO_ERROR", message });
+    sendToTab(tabId, { type: "STYLO_ERROR", message });
     return;
   }
 
-  chrome.tabs.sendMessage(tabId, { type: "SHOW_EDITS", revised });
+  sendToTab(tabId, { type: "SHOW_EDITS", revised });
 }
 
 async function fetchEdits(source: string, summary: string, model: string, apiKey: string): Promise<string> {
