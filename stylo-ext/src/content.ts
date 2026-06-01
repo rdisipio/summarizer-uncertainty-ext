@@ -124,6 +124,11 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       .unc-high      { background: #ffd6a5; border-radius: 3px; padding: 0 2px; }
       .unc-very-high { background: #ffadad; border-radius: 3px; padding: 0 2px; }
 
+      /* Clickable sentences (after scoring) */
+      .sentence { cursor: pointer; border-radius: 3px; }
+      .sentence:hover { outline: 1px dashed #bbb; }
+      .sentence.user-flagged { outline: 2px solid #7c3aed; background: #f5f3ff; padding: 0 2px; }
+
       /* Suggest edits panel */
       .edits-panel {
         display: none;
@@ -196,6 +201,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
 let originalResult: SummaryResult | null = null;
 let comparisonResult: SummaryResult | null = null;
 let lastOriginalScore: ScoreResult | null = null;
+const userSelectedSentences = new Set<string>();
 
 // ── Render helpers ────────────────────────────────────────────────────────────
 
@@ -217,6 +223,7 @@ function showSummary(result: SummaryResult) {
   originalResult = result;
   comparisonResult = null;
   lastOriginalScore = null;
+  userSelectedSentences.clear();
   const { shadow } = getOrCreateHost();
   shadow.getElementById("panel")!.classList.remove("comparing");
   shadow.getElementById("compare-grid")!.classList.remove("visible");
@@ -288,13 +295,27 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
   if (!score.sentence_results.length) return;
   el.innerHTML = score.sentence_results
     .map((s) => {
-      const cls = BAND_CLASS[s.uncertainty_band] ?? "";
+      const bandCls = BAND_CLASS[s.uncertainty_band] ?? "";
+      const userCls = userSelectedSentences.has(s.sentence_text) ? " user-flagged" : "";
+      const cls = ["sentence", bandCls, userCls].filter(Boolean).join(" ");
       const text = escapeHtml(s.sentence_text);
-      return cls
-        ? `<span class="${cls}" title="${s.uncertainty_band} uncertainty">${text}</span>`
-        : text;
+      const title = bandCls ? `${s.uncertainty_band} uncertainty — click to flag for editing` : "Click to flag for editing";
+      return `<span class="${cls}" data-sentence="${escapeHtml(s.sentence_text)}" title="${title}">${text}</span>`;
     })
     .join(" ");
+
+  el.querySelectorAll<HTMLSpanElement>(".sentence").forEach((span) => {
+    span.addEventListener("click", () => {
+      const text = span.dataset.sentence ?? "";
+      if (userSelectedSentences.has(text)) {
+        userSelectedSentences.delete(text);
+        span.classList.remove("user-flagged");
+      } else {
+        userSelectedSentences.add(text);
+        span.classList.add("user-flagged");
+      }
+    });
+  });
 }
 
 // ── Button wiring ─────────────────────────────────────────────────────────────
@@ -360,9 +381,12 @@ function requestEdits(result: SummaryResult) {
   shadow.getElementById("edits-body")!.innerHTML = '<span class="spinner"></span>Revising…';
   shadow.getElementById("edits-panel")!.classList.add("visible");
 
-  const highUncertaintySentences = (lastOriginalScore?.sentence_results ?? [])
-    .filter((s) => s.uncertainty_band === "high" || s.uncertainty_band === "very_high")
-    .map((s) => s.sentence_text);
+  const highUncertaintySentences = [
+    ...(lastOriginalScore?.sentence_results ?? [])
+      .filter((s) => s.uncertainty_band === "high" || s.uncertainty_band === "very_high")
+      .map((s) => s.sentence_text),
+    ...userSelectedSentences,
+  ].filter((v, i, arr) => arr.indexOf(v) === i); // deduplicate
 
   chrome.runtime.sendMessage({
     type: "SUGGEST_EDITS_REQUEST",
