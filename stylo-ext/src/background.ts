@@ -198,7 +198,7 @@ async function fetchScore(source: string, summary: string, token: string): Promi
     body: JSON.stringify({
       source,
       summary,
-      sample_count: 5,
+      sample_count: 10,
       seed: 0,
       compute_consistency: false,
     }),
