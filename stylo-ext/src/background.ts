@@ -27,7 +27,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  const model = (openrouterModel as string | undefined) ?? "google/gemini-flash-3";
+  const model = (openrouterModel as string | undefined) ?? "google/gemini-2.5-flash-lite";
 
   chrome.tabs.sendMessage(tab.id, { type: "STYLO_LOADING" });
 

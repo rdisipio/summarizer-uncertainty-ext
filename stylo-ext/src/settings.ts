@@ -1,7 +1,7 @@
 declare const __OPENROUTER_API_KEY__: string;
 declare const __HF_UNCERTAINTY_API_TOKEN__: string;
 
-const DEFAULT_MODEL = "google/gemini-flash-3";
+const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
 const DEFAULT_COMPARE_MODEL = "openai/gpt-oss-20b";
 
 async function init() {
