@@ -94,6 +94,8 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       msg.source as string,
       msg.summary as string,
       msg.model as string,
+      msg.style as string | undefined,
+      msg.highUncertaintySentences as string[],
       sender.tab.id,
     );
   }
@@ -124,12 +126,19 @@ async function handleCompareRequest(source: string, tabId: number) {
     .catch(() => { /* scoring failure is non-fatal for comparison */ });
 }
 
-async function handleSuggestEdits(source: string, summary: string, model: string, tabId: number) {
+async function handleSuggestEdits(
+  source: string,
+  summary: string,
+  model: string,
+  style: string | undefined,
+  highUncertaintySentences: string[],
+  tabId: number,
+) {
   const { openrouterKey } = await chrome.storage.local.get("openrouterKey");
 
   let revised: string;
   try {
-    revised = await fetchEdits(source, summary, model, openrouterKey as string);
+    revised = await fetchEdits(source, summary, model, style, highUncertaintySentences, openrouterKey as string);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Edits failed";
     sendToTab(tabId, { type: "STYLO_ERROR", message });
@@ -139,7 +148,22 @@ async function handleSuggestEdits(source: string, summary: string, model: string
   sendToTab(tabId, { type: "SHOW_EDITS", revised });
 }
 
-async function fetchEdits(source: string, summary: string, model: string, apiKey: string): Promise<string> {
+async function fetchEdits(
+  source: string,
+  summary: string,
+  model: string,
+  style: string | undefined,
+  highUncertaintySentences: string[],
+  apiKey: string,
+): Promise<string> {
+  const styleClause = style
+    ? `The summary was written in a "${style}" style. You must preserve this style exactly — do not make it more formal, more casual, or change its tone in any way.`
+    : "Preserve the tone and style of the original summary exactly.";
+
+  const targetClause = highUncertaintySentences.length > 0
+    ? `Revise only the following sentences, which were flagged as high uncertainty:\n${highUncertaintySentences.map((s) => `- ${s}`).join("\n")}\n\nAll other sentences must remain word-for-word identical.`
+    : "Revise any sentences that seem factually uncertain or imprecise.";
+
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -151,11 +175,11 @@ async function fetchEdits(source: string, summary: string, model: string, apiKey
       messages: [
         {
           role: "system",
-          content: "You are a precise editor. Given a source text and a summary, return an improved version of the summary only — no explanation, no preamble.",
+          content: `You are a precise editor. ${styleClause} Return the complete revised summary only — no explanation, no preamble, no formatting.`,
         },
         {
           role: "user",
-          content: `Source:\n${source}\n\nSummary to improve:\n${summary}`,
+          content: `Source text:\n${source}\n\nSummary:\n${summary}\n\n${targetClause}`,
         },
       ],
     }),

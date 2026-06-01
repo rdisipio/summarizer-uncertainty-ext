@@ -27,5 +27,5 @@ export type ExtensionMessage =
   | { type: "COMPARE_REQUEST"; source: string; model: string }
   | { type: "SHOW_COMPARISON"; result: SummaryResult }
   | { type: "UPDATE_COMPARISON_SCORE"; score: ScoreResult }
-  | { type: "SUGGEST_EDITS_REQUEST"; source: string; summary: string; model: string }
+  | { type: "SUGGEST_EDITS_REQUEST"; source: string; summary: string; model: string; style?: string; highUncertaintySentences: string[] }
   | { type: "SHOW_EDITS"; revised: string };

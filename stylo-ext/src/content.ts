@@ -357,15 +357,20 @@ function requestComparison(result: SummaryResult) {
 
 function requestEdits(result: SummaryResult) {
   const { shadow } = getOrCreateHost();
-  const panel = shadow.getElementById("edits-panel")!;
   shadow.getElementById("edits-body")!.innerHTML = '<span class="spinner"></span>Revising…';
-  panel.classList.add("visible");
+  shadow.getElementById("edits-panel")!.classList.add("visible");
+
+  const highUncertaintySentences = (lastOriginalScore?.sentence_results ?? [])
+    .filter((s) => s.uncertainty_band === "high" || s.uncertainty_band === "very_high")
+    .map((s) => s.sentence_text);
 
   chrome.runtime.sendMessage({
     type: "SUGGEST_EDITS_REQUEST",
     source: result.source,
     summary: result.summary,
     model: result.model,
+    style: result.style,
+    highUncertaintySentences,
   });
 }
 
