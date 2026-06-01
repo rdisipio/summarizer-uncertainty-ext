@@ -1,4 +1,4 @@
-import type { SummaryResult } from "./types";
+import type { ScoreResult, SummaryResult } from "./types";
 
 const SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
 
@@ -31,16 +31,28 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   chrome.tabs.sendMessage(tab.id, { type: "STYLO_LOADING" });
 
+  let summary: string;
   try {
-    const summary = await fetchSummary(text, model, openrouterKey as string);
-    const score = await fetchScore(text, summary, scoringToken as string);
-
-    const result: SummaryResult = { source: text, summary, score, model };
-    chrome.tabs.sendMessage(tab.id, { type: "SHOW_SUMMARY", result });
+    summary = await fetchSummary(text, model, openrouterKey as string);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     chrome.tabs.sendMessage(tab.id, { type: "STYLO_ERROR", message });
+    return;
   }
+
+  // Show summary immediately — don't wait for scoring
+  const result: SummaryResult = { source: text, summary, model };
+  chrome.tabs.sendMessage(tab.id, { type: "SHOW_SUMMARY", result });
+
+  // Fetch score in background; send when ready (~10s)
+  fetchScore(text, summary, scoringToken as string)
+    .then((score) => {
+      chrome.tabs.sendMessage(tab.id!, { type: "UPDATE_SCORE", score });
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : "Scoring failed";
+      chrome.tabs.sendMessage(tab.id!, { type: "STYLO_ERROR", message });
+    });
 });
 
 async function fetchSummary(text: string, model: string, apiKey: string): Promise<string> {
@@ -70,7 +82,7 @@ async function fetchSummary(text: string, model: string, apiKey: string): Promis
   return data.choices[0].message.content as string;
 }
 
-async function fetchScore(source: string, summary: string, token: string): Promise<unknown> {
+async function fetchScore(source: string, summary: string, token: string): Promise<ScoreResult> {
   const res = await fetch(SCORING_URL, {
     method: "POST",
     headers: {
@@ -87,5 +99,12 @@ async function fetchScore(source: string, summary: string, token: string): Promi
   });
 
   if (!res.ok) throw new Error(`Scoring error: ${res.status} ${res.statusText}`);
-  return res.json();
+  const raw = await res.json();
+
+  // Extract per-sentence scores from the API response
+  const scores: number[] = Array.isArray(raw?.sentence_scores)
+    ? (raw.sentence_scores as number[])
+    : [];
+
+  return { scores, raw };
 }
