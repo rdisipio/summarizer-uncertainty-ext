@@ -29,7 +29,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         width: 380px;
         max-height: 60vh;
         overflow-y: auto;
-        background: #fff;
+        background: #fdf6e3;
         border-radius: 12px;
         box-shadow: 0 4px 32px rgba(0,0,0,0.18);
         padding: 16px;
@@ -65,11 +65,12 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       }
       .compare-grid.visible { display: grid; grid-template-columns: 1fr 1fr; }
       .compare-col {
-        border: 1px solid #eee;
+        border: 1px solid #e8dfc8;
         border-radius: 8px;
         padding: 10px;
+        background: #fdf6e3;
       }
-      .compare-col.preferred { border-color: #4caf50; background: #f9fff9; }
+      .compare-col.preferred { border-color: #4caf50; background: #f4fbf0; }
       .model-badge {
         font-size: 11px;
         font-weight: 600;
