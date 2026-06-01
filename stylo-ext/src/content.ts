@@ -264,7 +264,7 @@ function applyScores(score: ScoreResult) {
 }
 
 function showComparison(result: SummaryResult) {
-  comparisonResult = result;
+  if (result.summary) comparisonResult = result; // only set when real content arrives, not the optimistic placeholder
   const { shadow } = getOrCreateHost();
 
   // Switch to comparing layout
@@ -293,12 +293,28 @@ function showComparison(result: SummaryResult) {
     origScoring.style.display = "none";
   }
 
-  // Populate comparison column
-  shadow.getElementById("badge-comparison")!.textContent = result.model;
-  shadow.getElementById("body-comparison")!.textContent = result.summary;
+  // Reset preference buttons for this round
+  const btnOrig = shadow.getElementById("prefer-original") as HTMLButtonElement;
+  const btnCmp  = shadow.getElementById("prefer-comparison") as HTMLButtonElement;
+  for (const btn of [btnOrig, btnCmp]) {
+    btn.textContent = "I prefer this";
+    btn.disabled = false;
+    btn.classList.remove("chosen");
+  }
+  shadow.getElementById("col-original")!.classList.remove("preferred");
+  shadow.getElementById("col-comparison")!.classList.remove("preferred");
+
+  // Populate comparison column — disable prefer button until real content arrives
+  shadow.getElementById("badge-comparison")!.textContent = result.model || "…";
+  if (result.summary) {
+    shadow.getElementById("body-comparison")!.textContent = result.summary;
+    btnCmp.disabled = false;
+  } else {
+    shadow.getElementById("body-comparison")!.innerHTML = '<span class="spinner"></span>Generating…';
+    btnCmp.disabled = true;
+  }
   const cmpScoring = shadow.getElementById("scoring-comparison") as HTMLElement;
-  cmpScoring.style.display = "block";
-  (shadow.getElementById("prefer-comparison") as HTMLButtonElement).disabled = false;
+  cmpScoring.style.display = "none";
 
   wirePreferenceButtons(shadow);
 }
@@ -354,6 +370,7 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
     btnOrig.classList.add("chosen");
     btnOrig.textContent = "Preferred ✓";
     btnCmp.disabled = true;
+    // originalResult stays as-is — already the preferred version
   };
 
   btnCmp.onclick = () => {
@@ -361,6 +378,12 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
     btnCmp.classList.add("chosen");
     btnCmp.textContent = "Preferred ✓";
     btnOrig.disabled = true;
+    // Promote comparison to originalResult so next "Compare models" uses it on the left
+    if (comparisonResult) {
+      originalResult = { ...comparisonResult };
+      lastOriginalScore = null;
+      originalScoreStale = true;
+    }
   };
 }
 
