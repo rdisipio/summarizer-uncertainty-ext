@@ -1,4 +1,4 @@
-import type { ScoreResult, SummaryResult } from "./types";
+import type { ScoreResult, SentenceScore, SummaryResult } from "./types";
 
 const SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
 
@@ -101,10 +101,9 @@ async function fetchScore(source: string, summary: string, token: string): Promi
   if (!res.ok) throw new Error(`Scoring error: ${res.status} ${res.statusText}`);
   const raw = await res.json();
 
-  // Extract per-sentence scores from the API response
-  const scores: number[] = Array.isArray(raw?.sentence_scores)
-    ? (raw.sentence_scores as number[])
+  const sentence_results: SentenceScore[] = Array.isArray(raw?.sentence_results)
+    ? (raw.sentence_results as SentenceScore[])
     : [];
 
-  return { scores, raw };
+  return { sentence_results, raw };
 }

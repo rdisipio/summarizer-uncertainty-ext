@@ -4,9 +4,18 @@ export interface SummaryResult {
   model: string;
 }
 
+export interface SentenceScore {
+  sentence_index: number;
+  sentence_text: string;
+  uncertainty_score: number;
+  uncertainty_band: "low" | "medium" | "high" | "very_high" | string;
+  ambiguity_score: number;
+  ambiguity_band: "low" | "medium" | "high" | "very_high" | string;
+}
+
 export interface ScoreResult {
-  scores: number[];       // per-sentence uncertainty scores
-  raw: unknown;           // full response from scoring endpoint
+  sentence_results: SentenceScore[];
+  raw: unknown;
 }
 
 export type ExtensionMessage =
