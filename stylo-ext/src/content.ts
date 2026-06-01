@@ -211,6 +211,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
 let originalResult: SummaryResult | null = null;
 let comparisonResult: SummaryResult | null = null;
 let lastOriginalScore: ScoreResult | null = null;
+let originalScoreStale = false;
 const userSelectedSentences = new Set<string>();
 
 // ── Render helpers ────────────────────────────────────────────────────────────
@@ -233,6 +234,7 @@ function showSummary(result: SummaryResult) {
   originalResult = result;
   comparisonResult = null;
   lastOriginalScore = null;
+  originalScoreStale = false;
   userSelectedSentences.clear();
   const { shadow } = getOrCreateHost();
   shadow.getElementById("panel")!.classList.remove("comparing");
@@ -273,16 +275,22 @@ function showComparison(result: SummaryResult) {
   const grid = shadow.getElementById("compare-grid")!;
   grid.classList.add("visible");
 
-  // Populate original column — apply highlights immediately if score already arrived
+  // Populate original column with the current accepted summary
   shadow.getElementById("badge-original")!.textContent = originalResult?.model ?? "";
   const bodyOriginal = shadow.getElementById("body-original")!;
   const origScoring = shadow.getElementById("scoring-original") as HTMLElement;
-  if (lastOriginalScore) {
+  if (lastOriginalScore && !originalScoreStale) {
+    // Score is valid — show highlights
     applyHighlights(bodyOriginal, lastOriginalScore);
     origScoring.style.display = "none";
-  } else {
+  } else if (!originalScoreStale) {
+    // Score hasn't arrived yet — show text and wait
     bodyOriginal.textContent = originalResult?.summary ?? "";
     origScoring.style.display = "block";
+  } else {
+    // Score was invalidated by an accepted edit — show accepted text, no spinner
+    bodyOriginal.textContent = originalResult?.summary ?? "";
+    origScoring.style.display = "none";
   }
 
   // Populate comparison column
@@ -330,10 +338,11 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
 
 // ── Button wiring ─────────────────────────────────────────────────────────────
 
-function wireButtons(shadow: ShadowRoot, result: SummaryResult) {
-  shadow.getElementById("btn-save")!.onclick = () => saveItem(result);
-  shadow.getElementById("btn-compare")!.onclick = () => requestComparison(result);
-  shadow.getElementById("btn-edit")!.onclick = () => requestEdits(result);
+function wireButtons(shadow: ShadowRoot, _initial: SummaryResult) {
+  // Always read originalResult at click time so edits approved via "Use this" are reflected
+  shadow.getElementById("btn-save")!.onclick    = () => originalResult && saveItem(originalResult);
+  shadow.getElementById("btn-compare")!.onclick = () => originalResult && requestComparison(originalResult);
+  shadow.getElementById("btn-edit")!.onclick    = () => originalResult && requestEdits(originalResult);
 }
 
 function wirePreferenceButtons(shadow: ShadowRoot) {
@@ -429,6 +438,8 @@ function showEdits(revised: string) {
   shadow.getElementById("btn-use-edits")!.onclick = () => {
     shadow.getElementById("body")!.textContent = revised;
     if (originalResult) originalResult = { ...originalResult, summary: revised };
+    lastOriginalScore = null;
+    originalScoreStale = true;
     shadow.getElementById("edits-panel")!.classList.remove("visible");
   };
 
