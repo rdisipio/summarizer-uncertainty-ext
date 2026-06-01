@@ -212,6 +212,7 @@ let originalResult: SummaryResult | null = null;
 let comparisonResult: SummaryResult | null = null;
 let lastOriginalScore: ScoreResult | null = null;
 let originalScoreStale = false;
+let preferredSide: "left" | "right" | null = null;
 const userSelectedSentences = new Set<string>();
 
 // ── Render helpers ────────────────────────────────────────────────────────────
@@ -235,6 +236,7 @@ function showSummary(result: SummaryResult) {
   comparisonResult = null;
   lastOriginalScore = null;
   originalScoreStale = false;
+  preferredSide = null;
   userSelectedSentences.clear();
   const { shadow } = getOrCreateHost();
   shadow.getElementById("panel")!.classList.remove("comparing");
@@ -319,6 +321,44 @@ function showComparison(result: SummaryResult) {
   wirePreferenceButtons(shadow);
 }
 
+function showRegenLeft(result: SummaryResult) {
+  const { shadow } = getOrCreateHost();
+
+  // Ensure compare grid is visible
+  shadow.getElementById("panel")!.classList.add("comparing");
+  shadow.getElementById("body")!.style.display = "none";
+  shadow.getElementById("scoring-note")!.style.display = "none";
+  shadow.getElementById("compare-grid")!.classList.add("visible");
+
+  // Reset preference buttons
+  const btnOrig = shadow.getElementById("prefer-original") as HTMLButtonElement;
+  const btnCmp  = shadow.getElementById("prefer-comparison") as HTMLButtonElement;
+  for (const btn of [btnOrig, btnCmp]) {
+    btn.textContent = "I prefer this";
+    btn.disabled = false;
+    btn.classList.remove("chosen");
+  }
+
+  // LEFT column gets the new generation
+  shadow.getElementById("badge-original")!.textContent = result.model || "…";
+  const bodyOriginal = shadow.getElementById("body-original")!;
+  const origScoring  = shadow.getElementById("scoring-original") as HTMLElement;
+  if (result.summary) {
+    bodyOriginal.textContent = result.summary;
+    origScoring.style.display = "none";
+    btnOrig.disabled = false;
+  } else {
+    bodyOriginal.innerHTML = '<span class="spinner"></span>Generating…';
+    origScoring.style.display = "none";
+    btnOrig.disabled = true;
+  }
+
+  // RIGHT column keeps the current preferred text untouched
+  // (comparisonResult / originalResult already hold it; badge+body were set in previous round)
+
+  wirePreferenceButtons(shadow);
+}
+
 function applyComparisonScores(score: ScoreResult) {
   const { shadow } = getOrCreateHost();
   applyHighlights(shadow.getElementById("body-comparison")!, score);
@@ -367,18 +407,20 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
 
   btnOrig.onclick = () => {
     savePreference("original");
+    preferredSide = "left";
     btnOrig.classList.add("chosen");
     btnOrig.textContent = "Preferred ✓";
     btnCmp.disabled = true;
-    // originalResult stays as-is — already the preferred version
   };
 
   btnCmp.onclick = () => {
     savePreference("comparison");
+    preferredSide = "right";
     btnCmp.classList.add("chosen");
     btnCmp.textContent = "Preferred ✓";
     btnOrig.disabled = true;
-    // Promote comparison to originalResult so next "Compare models" uses it on the left
+    // The preferred text stays on the right — update originalResult so
+    // Save / Suggest edits operate on it, but don't rearrange the columns
     if (comparisonResult) {
       originalResult = { ...comparisonResult };
       lastOriginalScore = null;
@@ -412,10 +454,15 @@ async function savePreference(preferred: "original" | "comparison") {
 }
 
 function requestComparison(result: SummaryResult) {
-  chrome.runtime.sendMessage({ type: "COMPARE_REQUEST", source: result.source });
-
-  // Optimistically set up the comparison panel while waiting
-  showComparison({ source: result.source, summary: "", model: "…" });
+  if (preferredSide === "right") {
+    // Preferred text is on the right — regenerate the LEFT with the default model
+    chrome.runtime.sendMessage({ type: "REGEN_LEFT_REQUEST", source: result.source, style: result.style });
+    showRegenLeft({ source: result.source, summary: "", model: "…" });
+  } else {
+    // Normal flow — regenerate the RIGHT with the compare model
+    chrome.runtime.sendMessage({ type: "COMPARE_REQUEST", source: result.source });
+    showComparison({ source: result.source, summary: "", model: "…" });
+  }
 }
 
 function requestEdits(result: SummaryResult) {
@@ -485,6 +532,15 @@ chrome.runtime.onMessage.addListener((msg: ExtensionMessage) => {
     case "UPDATE_SCORE":          applyScores(msg.score); break;
     case "SHOW_COMPARISON":         showComparison(msg.result); break;
     case "UPDATE_COMPARISON_SCORE": applyComparisonScores(msg.score); break;
+    case "SHOW_REGEN_LEFT": {
+      showRegenLeft(msg.result);
+      // Update left column originalResult so Save/Suggest edits stay consistent
+      originalResult = { ...msg.result };
+      lastOriginalScore = null;
+      originalScoreStale = true;
+      preferredSide = null; // reset — fresh comparison round
+      break;
+    }
     case "SHOW_EDITS":              showEdits(msg.revised); break;
   }
 });

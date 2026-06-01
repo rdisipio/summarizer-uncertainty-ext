@@ -28,4 +28,6 @@ export type ExtensionMessage =
   | { type: "SHOW_COMPARISON"; result: SummaryResult }
   | { type: "UPDATE_COMPARISON_SCORE"; score: ScoreResult }
   | { type: "SUGGEST_EDITS_REQUEST"; source: string; summary: string; model: string; style?: string; highUncertaintySentences: string[] }
-  | { type: "SHOW_EDITS"; revised: string };
+  | { type: "SHOW_EDITS"; revised: string }
+  | { type: "REGEN_LEFT_REQUEST"; source: string; style?: string }
+  | { type: "SHOW_REGEN_LEFT"; result: SummaryResult };

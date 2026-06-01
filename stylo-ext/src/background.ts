@@ -89,6 +89,9 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "COMPARE_REQUEST") {
     handleCompareRequest(msg.source as string, sender.tab.id);
   }
+  if (msg.type === "REGEN_LEFT_REQUEST") {
+    handleRegenLeft(msg.source as string, msg.style as string | undefined, sender.tab.id);
+  }
   if (msg.type === "SUGGEST_EDITS_REQUEST") {
     handleSuggestEdits(
       msg.source as string,
@@ -100,6 +103,30 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     );
   }
 });
+
+async function handleRegenLeft(source: string, style: string | undefined, tabId: number) {
+  const { openrouterKey, scoringToken, openrouterModel } =
+    await chrome.storage.local.get(["openrouterKey", "scoringToken", "openrouterModel"]);
+
+  const model = (openrouterModel as string | undefined) ?? "google/gemini-2.5-flash-lite";
+  const stylePrompt = style ? STYLE_PROMPTS[style as SummaryStyle] : undefined;
+
+  let summary: string;
+  try {
+    summary = await fetchSummary(source, model, openrouterKey as string, stylePrompt);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Regeneration failed";
+    sendToTab(tabId, { type: "STYLO_ERROR", message });
+    return;
+  }
+
+  const result: SummaryResult = { source, summary, model, style };
+  sendToTab(tabId, { type: "SHOW_REGEN_LEFT", result });
+
+  fetchScore(source, summary, scoringToken as string)
+    .then((score) => sendToTab(tabId, { type: "UPDATE_SCORE", score }))
+    .catch(() => { /* non-fatal */ });
+}
 
 async function handleCompareRequest(source: string, tabId: number) {
   const { openrouterKey, scoringToken, compareModel } =
