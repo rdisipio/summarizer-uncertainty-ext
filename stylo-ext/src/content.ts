@@ -487,6 +487,20 @@ function requestEdits(result: SummaryResult) {
   });
 }
 
+function collapseToSingleView(text: string, style?: string) {
+  const { shadow } = getOrCreateHost();
+  shadow.getElementById("panel")!.classList.remove("comparing");
+  shadow.getElementById("compare-grid")!.classList.remove("visible");
+  shadow.getElementById("edits-panel")!.classList.remove("visible");
+  const body = shadow.getElementById("body")!;
+  body.textContent = text;
+  body.style.display = "block";
+  shadow.getElementById("scoring-note")!.style.display = "none";
+  shadow.getElementById("actions")!.style.display = "flex";
+  const label = style ? `Stylo — ${style}` : "Stylo";
+  shadow.querySelector(".title")!.textContent = label;
+}
+
 function showEdits(revised: string) {
   const { shadow } = getOrCreateHost();
   const body = shadow.getElementById("edits-body")!;
@@ -506,11 +520,12 @@ function showEdits(revised: string) {
   };
 
   shadow.getElementById("btn-use-edits")!.onclick = () => {
-    shadow.getElementById("body")!.textContent = revised;
     if (originalResult) originalResult = { ...originalResult, summary: revised };
     lastOriginalScore = null;
     originalScoreStale = true;
-    shadow.getElementById("edits-panel")!.classList.remove("visible");
+    comparisonResult = null;
+    preferredSide = null;
+    collapseToSingleView(revised, originalResult?.style);
   };
 
   shadow.getElementById("btn-discard-edits")!.onclick = () => {
