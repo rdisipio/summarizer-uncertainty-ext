@@ -137,8 +137,15 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         padding-top: 12px;
       }
       .edits-panel.visible { display: block; }
-      .edits-label { font-size: 11px; font-weight: 600; color: #888; margin-bottom: 6px; }
+      .edits-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .edits-label { font-size: 11px; font-weight: 600; color: #888; }
+      .btn-regen {
+        background: none; border: none; cursor: pointer; font-size: 14px;
+        color: #aaa; padding: 0; line-height: 1;
+      }
+      .btn-regen:hover { color: #555; }
       .edits-body { line-height: 1.6; font-size: 14px; margin-bottom: 10px; }
+      .edited-sentence { background: #f0f0f0; border-radius: 3px; padding: 0 2px; }
       .edits-actions { display: flex; gap: 8px; }
       .edits-actions button {
         padding: 5px 12px; border-radius: 6px; border: 1px solid #ddd;
@@ -181,7 +188,10 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         <button id="btn-edit">Suggest edits</button>
       </div>
       <div class="edits-panel" id="edits-panel">
-        <div class="edits-label">Suggested revision</div>
+        <div class="edits-header">
+          <span class="edits-label">Suggested revision</span>
+          <button class="btn-regen" id="btn-regen" title="Regenerate">↺</button>
+        </div>
         <div class="edits-body" id="edits-body"></div>
         <div class="edits-actions">
           <button id="btn-use-edits">Use this</button>
@@ -401,10 +411,22 @@ function requestEdits(result: SummaryResult) {
 function showEdits(revised: string) {
   const { shadow } = getOrCreateHost();
   const body = shadow.getElementById("edits-body")!;
-  body.textContent = revised;
+
+  const originalSentences = new Set(splitSentences(originalResult?.summary ?? ""));
+  const html = splitSentences(revised)
+    .map((s) =>
+      originalSentences.has(s)
+        ? escapeHtml(s)
+        : `<span class="edited-sentence">${escapeHtml(s)}</span>`,
+    )
+    .join(" ");
+  body.innerHTML = html;
+
+  shadow.getElementById("btn-regen")!.onclick = () => {
+    if (originalResult) requestEdits(originalResult);
+  };
 
   shadow.getElementById("btn-use-edits")!.onclick = () => {
-    // Replace the displayed summary with the revised version
     shadow.getElementById("body")!.textContent = revised;
     if (originalResult) originalResult = { ...originalResult, summary: revised };
     shadow.getElementById("edits-panel")!.classList.remove("visible");
@@ -413,6 +435,10 @@ function showEdits(revised: string) {
   shadow.getElementById("btn-discard-edits")!.onclick = () => {
     shadow.getElementById("edits-panel")!.classList.remove("visible");
   };
+}
+
+function splitSentences(text: string): string[] {
+  return text.match(/[^.!?]+[.!?]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [text.trim()];
 }
 
 // ── Message listener ──────────────────────────────────────────────────────────
