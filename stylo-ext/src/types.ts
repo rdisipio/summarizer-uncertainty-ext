@@ -2,6 +2,7 @@ export interface SummaryResult {
   source: string;
   summary: string;
   model: string;
+  style?: string;
 }
 
 export interface SentenceScore {

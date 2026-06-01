@@ -222,6 +222,9 @@ function showSummary(result: SummaryResult) {
   shadow.getElementById("body")!.style.display = "block";
   shadow.getElementById("actions")!.style.display = "flex";
   shadow.getElementById("scoring-note")!.style.display = "block";
+  shadow.getElementById("edits-panel")!.classList.remove("visible");
+  const label = result.style ? `Stylo — ${result.style}` : "Stylo";
+  shadow.querySelector(".title")!.textContent = label;
   wireButtons(shadow, result);
 }
 

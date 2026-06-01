@@ -10,16 +10,39 @@ function sendToTab(tabId: number, msg: unknown) {
   });
 }
 
+type SummaryStyle = "shorten" | "professional" | "informal";
+
+const STYLE_PROMPTS: Record<SummaryStyle, string> = {
+  shorten:      "Summarize this text as concisely as possible, keeping only the most essential information. Return only the summary.",
+  professional: "Summarize this text in a clear, professional tone suitable for a business context. Return only the summary.",
+  informal:     "Summarize this text in a casual, conversational tone. Return only the summary.",
+};
+
+const MENU_ITEMS: { id: SummaryStyle; title: string }[] = [
+  { id: "shorten",      title: "Shorten" },
+  { id: "professional", title: "Professional style" },
+  { id: "informal",     title: "Informal style" },
+];
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: "summarize",
+    id: "stylo-parent",
     title: "Summarize with Stylo",
     contexts: ["selection"],
   });
+  for (const item of MENU_ITEMS) {
+    chrome.contextMenus.create({
+      id: item.id,
+      parentId: "stylo-parent",
+      title: item.title,
+      contexts: ["selection"],
+    });
+  }
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== "summarize" || !tab?.id) return;
+  const style = info.menuItemId as SummaryStyle;
+  if (!STYLE_PROMPTS[style] || !tab?.id) return;
 
   const text = info.selectionText?.trim();
   if (!text) return;
@@ -41,18 +64,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   let summary: string;
   try {
-    summary = await fetchSummary(text, model, openrouterKey as string);
+    summary = await fetchSummary(text, model, openrouterKey as string, STYLE_PROMPTS[style]);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     sendToTab(tab.id, { type: "STYLO_ERROR", message });
     return;
   }
 
-  // Show summary immediately — don't wait for scoring
-  const result: SummaryResult = { source: text, summary, model };
+  const result: SummaryResult = { source: text, summary, model, style };
   sendToTab(tab.id, { type: "SHOW_SUMMARY", result });
 
-  // Fetch score in background; send when ready (~10s)
   fetchScore(text, summary, scoringToken as string)
     .then((score) => {
       sendToTab(tab.id!, { type: "UPDATE_SCORE", score });
@@ -145,7 +166,8 @@ async function fetchEdits(source: string, summary: string, model: string, apiKey
   return data.choices[0].message.content as string;
 }
 
-async function fetchSummary(text: string, model: string, apiKey: string): Promise<string> {
+async function fetchSummary(text: string, model: string, apiKey: string, stylePrompt?: string): Promise<string> {
+  const systemPrompt = stylePrompt ?? "Summarize this text concisely. Return only the summary, no preamble.";
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -155,14 +177,8 @@ async function fetchSummary(text: string, model: string, apiKey: string): Promis
     body: JSON.stringify({
       model,
       messages: [
-        {
-          role: "system",
-          content: "You are a concise summarizer. Return only the summary, no preamble.",
-        },
-        {
-          role: "user",
-          content: `Summarize the following text:\n\n${text}`,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: text },
       ],
     }),
   });
