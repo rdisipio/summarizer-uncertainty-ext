@@ -27,7 +27,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  const model = (openrouterModel as string | undefined) ?? "openai/gpt-4o-mini";
+  const model = (openrouterModel as string | undefined) ?? "google/gemini-flash-3";
 
   chrome.tabs.sendMessage(tab.id, { type: "STYLO_LOADING" });
 
@@ -54,6 +54,37 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       chrome.tabs.sendMessage(tab.id!, { type: "STYLO_ERROR", message });
     });
 });
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg.type === "COMPARE_REQUEST" && sender.tab?.id) {
+    handleCompareRequest(msg.source as string, sender.tab.id);
+  }
+});
+
+async function handleCompareRequest(source: string, tabId: number) {
+  const { openrouterKey, scoringToken, compareModel } =
+    await chrome.storage.local.get(["openrouterKey", "scoringToken", "compareModel"]);
+
+  const model = (compareModel as string | undefined) ?? "openai/gpt-oss-20b";
+
+  let summary: string;
+  try {
+    summary = await fetchSummary(source, model, openrouterKey as string);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Comparison failed";
+    chrome.tabs.sendMessage(tabId, { type: "STYLO_ERROR", message });
+    return;
+  }
+
+  const result: SummaryResult = { source, summary, model };
+  chrome.tabs.sendMessage(tabId, { type: "SHOW_COMPARISON", result });
+
+  fetchScore(source, summary, scoringToken as string)
+    .then((score) => {
+      chrome.tabs.sendMessage(tabId, { type: "UPDATE_COMPARISON_SCORE", score });
+    })
+    .catch(() => { /* scoring failure is non-fatal for comparison */ });
+}
 
 async function fetchSummary(text: string, model: string, apiKey: string): Promise<string> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
