@@ -195,6 +195,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
 
 let originalResult: SummaryResult | null = null;
 let comparisonResult: SummaryResult | null = null;
+let lastOriginalScore: ScoreResult | null = null;
 
 // ── Render helpers ────────────────────────────────────────────────────────────
 
@@ -215,6 +216,7 @@ function showError(message: string) {
 function showSummary(result: SummaryResult) {
   originalResult = result;
   comparisonResult = null;
+  lastOriginalScore = null;
   const { shadow } = getOrCreateHost();
   shadow.getElementById("panel")!.classList.remove("comparing");
   shadow.getElementById("compare-grid")!.classList.remove("visible");
@@ -229,6 +231,7 @@ function showSummary(result: SummaryResult) {
 }
 
 function applyScores(score: ScoreResult) {
+  lastOriginalScore = score;
   const { shadow } = getOrCreateHost();
   const isComparing = shadow.getElementById("compare-grid")!.classList.contains("visible");
 
@@ -253,11 +256,17 @@ function showComparison(result: SummaryResult) {
   const grid = shadow.getElementById("compare-grid")!;
   grid.classList.add("visible");
 
-  // Populate original column
+  // Populate original column — apply highlights immediately if score already arrived
   shadow.getElementById("badge-original")!.textContent = originalResult?.model ?? "";
-  shadow.getElementById("body-original")!.textContent = originalResult?.summary ?? "";
+  const bodyOriginal = shadow.getElementById("body-original")!;
   const origScoring = shadow.getElementById("scoring-original") as HTMLElement;
-  origScoring.style.display = "block";
+  if (lastOriginalScore) {
+    applyHighlights(bodyOriginal, lastOriginalScore);
+    origScoring.style.display = "none";
+  } else {
+    bodyOriginal.textContent = originalResult?.summary ?? "";
+    origScoring.style.display = "block";
+  }
 
   // Populate comparison column
   shadow.getElementById("badge-comparison")!.textContent = result.model;
