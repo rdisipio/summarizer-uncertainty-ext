@@ -51,6 +51,9 @@ curl -s -X POST "https://rdisipio-sentence-uncertainty.hf.space/score" \
   -d '{"source": "...", "summary": "...", "sample_count": 5, "seed": 0, "compute_consistency": false}'
 ```
 
+**Scoring configuration:**
+`sample_count` must be set to **10** — the statistical model normalising uncertainty bands was trained with 10 posterior samples. Using a different value produces out-of-distribution scores and incorrect band assignments. Do not change this without retraining the normalisation boundaries.
+
 **Why local server is architecturally necessary:**
 The Laplace uncertainty scoring runs 20 posterior samples, each requiring weight perturbation + full teacher-forced forward pass through a seq2seq model (facebook/bart-base, planned upgrade to bart-large-xsum). This is PyTorch-native weight mutation — not exportable to ONNX or runnable in browser WASM.
 
