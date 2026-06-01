@@ -254,6 +254,7 @@ function showSummary(result: SummaryResult) {
 
 function applyScores(score: ScoreResult) {
   lastOriginalScore = score;
+  originalScoreStale = false;
   const { shadow } = getOrCreateHost();
   const isComparing = shadow.getElementById("compare-grid")!.classList.contains("visible");
 
@@ -496,10 +497,21 @@ function collapseToSingleView(text: string, style?: string) {
   const body = shadow.getElementById("body")!;
   body.textContent = text;
   body.style.display = "block";
-  shadow.getElementById("scoring-note")!.style.display = "none";
   shadow.getElementById("actions")!.style.display = "flex";
   const label = style ? `Stylo — ${style}` : "Stylo";
   shadow.querySelector(".title")!.textContent = label;
+
+  // Re-score the accepted text so sentence spans and click handlers come back
+  if (originalResult) {
+    shadow.getElementById("scoring-note")!.style.display = "block";
+    chrome.runtime.sendMessage({
+      type: "RESCORE_REQUEST",
+      source: originalResult.source,
+      summary: text,
+    });
+  } else {
+    shadow.getElementById("scoring-note")!.style.display = "none";
+  }
 }
 
 function showEdits(revised: string) {

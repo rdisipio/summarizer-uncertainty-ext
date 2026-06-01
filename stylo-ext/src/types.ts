@@ -30,4 +30,5 @@ export type ExtensionMessage =
   | { type: "SUGGEST_EDITS_REQUEST"; source: string; summary: string; model: string; style?: string; highUncertaintySentences: string[] }
   | { type: "SHOW_EDITS"; revised: string }
   | { type: "REGEN_LEFT_REQUEST"; source: string; style?: string }
-  | { type: "SHOW_REGEN_LEFT"; result: SummaryResult };
+  | { type: "SHOW_REGEN_LEFT"; result: SummaryResult }
+  | { type: "RESCORE_REQUEST"; source: string; summary: string };

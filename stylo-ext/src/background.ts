@@ -92,6 +92,13 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg.type === "REGEN_LEFT_REQUEST") {
     handleRegenLeft(msg.source as string, msg.style as string | undefined, sender.tab.id);
   }
+  if (msg.type === "RESCORE_REQUEST") {
+    chrome.storage.local.get("scoringToken").then(({ scoringToken }) =>
+      fetchScore(msg.source as string, msg.summary as string, scoringToken as string)
+        .then((score) => sendToTab(sender.tab!.id!, { type: "UPDATE_SCORE", score }))
+        .catch(() => { /* non-fatal */ })
+    );
+  }
   if (msg.type === "SUGGEST_EDITS_REQUEST") {
     handleSuggestEdits(
       msg.source as string,
