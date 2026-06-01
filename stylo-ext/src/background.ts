@@ -56,8 +56,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg.type === "COMPARE_REQUEST" && sender.tab?.id) {
+  if (!sender.tab?.id) return;
+  if (msg.type === "COMPARE_REQUEST") {
     handleCompareRequest(msg.source as string, sender.tab.id);
+  }
+  if (msg.type === "SUGGEST_EDITS_REQUEST") {
+    handleSuggestEdits(
+      msg.source as string,
+      msg.summary as string,
+      msg.model as string,
+      sender.tab.id,
+    );
   }
 });
 
@@ -84,6 +93,48 @@ async function handleCompareRequest(source: string, tabId: number) {
       chrome.tabs.sendMessage(tabId, { type: "UPDATE_COMPARISON_SCORE", score });
     })
     .catch(() => { /* scoring failure is non-fatal for comparison */ });
+}
+
+async function handleSuggestEdits(source: string, summary: string, model: string, tabId: number) {
+  const { openrouterKey } = await chrome.storage.local.get("openrouterKey");
+
+  let revised: string;
+  try {
+    revised = await fetchEdits(source, summary, model, openrouterKey as string);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Edits failed";
+    chrome.tabs.sendMessage(tabId, { type: "STYLO_ERROR", message });
+    return;
+  }
+
+  chrome.tabs.sendMessage(tabId, { type: "SHOW_EDITS", revised });
+}
+
+async function fetchEdits(source: string, summary: string, model: string, apiKey: string): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "You are a precise editor. Given a source text and a summary, return an improved version of the summary only — no explanation, no preamble.",
+        },
+        {
+          role: "user",
+          content: `Source:\n${source}\n\nSummary to improve:\n${summary}`,
+        },
+      ],
+    }),
+  });
+
+  if (!res.ok) throw new Error(`OpenRouter error: ${res.status} ${res.statusText}`);
+  const data = await res.json();
+  return data.choices[0].message.content as string;
 }
 
 async function fetchSummary(text: string, model: string, apiKey: string): Promise<string> {

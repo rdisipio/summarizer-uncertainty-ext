@@ -25,4 +25,6 @@ export type ExtensionMessage =
   | { type: "UPDATE_SCORE"; score: ScoreResult }
   | { type: "COMPARE_REQUEST"; source: string; model: string }
   | { type: "SHOW_COMPARISON"; result: SummaryResult }
-  | { type: "UPDATE_COMPARISON_SCORE"; score: ScoreResult };
+  | { type: "UPDATE_COMPARISON_SCORE"; score: ScoreResult }
+  | { type: "SUGGEST_EDITS_REQUEST"; source: string; summary: string; model: string }
+  | { type: "SHOW_EDITS"; revised: string };

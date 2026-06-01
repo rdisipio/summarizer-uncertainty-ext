@@ -123,6 +123,23 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       .unc-medium    { background: #fff3cd; border-radius: 3px; padding: 0 2px; }
       .unc-high      { background: #ffd6a5; border-radius: 3px; padding: 0 2px; }
       .unc-very-high { background: #ffadad; border-radius: 3px; padding: 0 2px; }
+
+      /* Suggest edits panel */
+      .edits-panel {
+        display: none;
+        margin-top: 12px;
+        border-top: 1px solid #eee;
+        padding-top: 12px;
+      }
+      .edits-panel.visible { display: block; }
+      .edits-label { font-size: 11px; font-weight: 600; color: #888; margin-bottom: 6px; }
+      .edits-body { line-height: 1.6; font-size: 14px; margin-bottom: 10px; }
+      .edits-actions { display: flex; gap: 8px; }
+      .edits-actions button {
+        padding: 5px 12px; border-radius: 6px; border: 1px solid #ddd;
+        background: #fafafa; cursor: pointer; font-size: 12px; color: #333;
+      }
+      .edits-actions button:hover { background: #f0f0f0; }
     </style>
     <div class="panel" id="panel">
       <div class="header">
@@ -157,6 +174,14 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         <button id="btn-save">Save</button>
         <button id="btn-compare">Compare models</button>
         <button id="btn-edit">Suggest edits</button>
+      </div>
+      <div class="edits-panel" id="edits-panel">
+        <div class="edits-label">Suggested revision</div>
+        <div class="edits-body" id="edits-body"></div>
+        <div class="edits-actions">
+          <button id="btn-use-edits">Use this</button>
+          <button id="btn-discard-edits">Discard</button>
+        </div>
       </div>
     </div>
   `;
@@ -318,8 +343,35 @@ function requestComparison(result: SummaryResult) {
   showComparison({ source: result.source, summary: "", model: "…" });
 }
 
-function requestEdits(_result: SummaryResult) {
-  // TODO step 8
+function requestEdits(result: SummaryResult) {
+  const { shadow } = getOrCreateHost();
+  const panel = shadow.getElementById("edits-panel")!;
+  shadow.getElementById("edits-body")!.innerHTML = '<span class="spinner"></span>Revising…';
+  panel.classList.add("visible");
+
+  chrome.runtime.sendMessage({
+    type: "SUGGEST_EDITS_REQUEST",
+    source: result.source,
+    summary: result.summary,
+    model: result.model,
+  });
+}
+
+function showEdits(revised: string) {
+  const { shadow } = getOrCreateHost();
+  const body = shadow.getElementById("edits-body")!;
+  body.textContent = revised;
+
+  shadow.getElementById("btn-use-edits")!.onclick = () => {
+    // Replace the displayed summary with the revised version
+    shadow.getElementById("body")!.textContent = revised;
+    if (originalResult) originalResult = { ...originalResult, summary: revised };
+    shadow.getElementById("edits-panel")!.classList.remove("visible");
+  };
+
+  shadow.getElementById("btn-discard-edits")!.onclick = () => {
+    shadow.getElementById("edits-panel")!.classList.remove("visible");
+  };
 }
 
 // ── Message listener ──────────────────────────────────────────────────────────
@@ -330,8 +382,9 @@ chrome.runtime.onMessage.addListener((msg: ExtensionMessage) => {
     case "STYLO_ERROR":           showError(msg.message); break;
     case "SHOW_SUMMARY":          showSummary(msg.result); break;
     case "UPDATE_SCORE":          applyScores(msg.score); break;
-    case "SHOW_COMPARISON":       showComparison(msg.result); break;
+    case "SHOW_COMPARISON":         showComparison(msg.result); break;
     case "UPDATE_COMPARISON_SCORE": applyComparisonScores(msg.score); break;
+    case "SHOW_EDITS":              showEdits(msg.revised); break;
   }
 });
 
