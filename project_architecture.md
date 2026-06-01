@@ -30,7 +30,9 @@ Stylo is a browser extension for uncertainty-aware text summarization, designed 
 4. Overlay buttons: **Save**, **Compare models** (reruns with a second model, side-by-side → preference signal), **Suggest edits** (annotate or send back to LLM)
 
 **API key handling:**
-Both the OpenRouter key and the scoring server token are user-supplied and stored in `chrome.storage.local`. They are never baked into the extension bundle.
+Both the OpenRouter key and the scoring server token are stored in `chrome.storage.local`. For personal/development builds, they are injected at build time from `.env` via Vite `define` (only the two specific keys — `OPENROUTER_API_KEY` and `HF_UNCERTAINTY_API_TOKEN` — are injected; other vars in `.env` are not touched). The keys end up in plaintext inside `dist/src/settings.js`.
+
+> **Caveat:** this is acceptable for a personal extension loaded unpacked and never published. Before any public distribution (Chrome Web Store), remove the `define` injection from `vite.config.ts` and require users to enter their own keys manually in the settings form.
 
 **Distribution:**
 - Development: load unpacked via `chrome://extensions` (Developer mode), no account needed

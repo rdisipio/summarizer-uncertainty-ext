@@ -69,6 +69,10 @@ Two inputs saved to `chrome.storage.local`:
 
 Users open this page once via `chrome://extensions` → Details → Extension options.
 
+For personal/development builds, `vite.config.ts` injects `OPENROUTER_API_KEY` and `HF_UNCERTAINTY_API_TOKEN` from `.env` at build time via Vite `define`, so the fields are pre-populated on first open. Only those two specific variables are injected — other keys in `.env` are not touched.
+
+> **Caveat:** The two keys are stored in plaintext inside `dist/src/settings.js`. This is acceptable for a personal unpacked extension. Before any public distribution, remove the `define` block from `vite.config.ts` so users supply their own keys and nothing is baked into the bundle.
+
 ```typescript
 // src/settings.ts
 const form = document.getElementById("settings-form") as HTMLFormElement;
