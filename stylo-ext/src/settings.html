@@ -2,11 +2,62 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Stylo Settings</title>
+    <title>Stylo — Settings</title>
     <script type="module" src="./settings.ts"></script>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 480px;
+        margin: 40px auto;
+        padding: 0 16px;
+        color: #1a1a1a;
+      }
+      h1 { font-size: 20px; margin-bottom: 24px; }
+      label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+      input[type="password"], input[type="text"] {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 13px;
+        box-sizing: border-box;
+        margin-bottom: 16px;
+      }
+      .field-group { margin-bottom: 8px; }
+      button {
+        padding: 8px 20px;
+        background: #1a1a1a;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:hover { background: #333; }
+      #status { font-size: 13px; color: #4caf50; margin-top: 12px; display: none; }
+    </style>
   </head>
   <body>
     <h1>Stylo Settings</h1>
-    <!-- implemented in step 3 -->
+
+    <form id="settings-form">
+      <div class="field-group">
+        <label for="openrouter-key">OpenRouter API key</label>
+        <input type="password" id="openrouter-key" placeholder="sk-or-..." autocomplete="off" />
+      </div>
+
+      <div class="field-group">
+        <label for="scoring-token">Scoring server token</label>
+        <input type="password" id="scoring-token" placeholder="HF Spaces token" autocomplete="off" />
+      </div>
+
+      <div class="field-group">
+        <label for="openrouter-model">Default model</label>
+        <input type="text" id="openrouter-model" placeholder="openai/gpt-4o-mini" autocomplete="off" />
+      </div>
+
+      <button type="submit">Save</button>
+      <div id="status">Saved.</div>
+    </form>
   </body>
 </html>
