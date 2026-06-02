@@ -257,8 +257,9 @@ async function fetchScore(source: string, summary: string, token: string): Promi
     compute_consistency: false,
   });
 
-  // Try local Docker server first; fall back to remote on any failure or timeout
+  // Try local Docker server first; fall back to remote on any failure, timeout, or non-2xx
   const res = await fetchScoreFrom(LOCAL_SCORING_URL, token, body, LOCAL_TIMEOUT_MS)
+    .then((r) => { if (!r.ok) throw new Error(`local:${r.status}`); return r; })
     .catch(() => fetchScoreFrom(REMOTE_SCORING_URL, token, body));
 
   if (!res.ok) throw new Error(`Scoring error: ${res.status} ${res.statusText}`);
