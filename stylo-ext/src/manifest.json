@@ -6,8 +6,7 @@
   "permissions": ["contextMenus", "storage", "activeTab", "scripting"],
   "host_permissions": [
     "https://openrouter.ai/*",
-    "https://rdisipio-sentence-uncertainty.hf.space/*",
-    "http://localhost/*"
+    "https://rdisipio-sentence-uncertainty.hf.space/*"
   ],
   "background": {
     "service_worker": "src/background.ts",
