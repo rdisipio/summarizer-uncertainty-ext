@@ -1,19 +1,17 @@
 import type { ExtensionMessage, ScoreResult, SummaryResult } from "./types";
 
-const HOST_ID = "stylo-root";
+const HOST_ID = "pocket-stylo-root";
 
 const BAND_CLASS: Record<string, string> = {
   low: "",
-  medium: "unc-medium",
+  mid: "unc-medium",
   high: "unc-high",
-  very_high: "unc-very-high",
 };
 
 const BAND_LABEL: Record<string, string> = {
   low: "low",
-  medium: "mid",
+  mid: "mid",
   high: "high",
-  very_high: "very high",
 };
 
 // ── Shadow DOM setup ──────────────────────────────────────────────────────────
@@ -36,7 +34,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         width: 380px;
         max-height: 60vh;
         overflow-y: auto;
-        background: #fdf6e3;
+        background: #f3f2eb;
         border-radius: 12px;
         box-shadow: 0 4px 32px rgba(0,0,0,0.18);
         padding: 16px;
@@ -75,7 +73,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         border: 1px solid #e8dfc8;
         border-radius: 8px;
         padding: 10px;
-        background: #fdf6e3;
+        background: #f3f2eb;
       }
       .compare-col.preferred { border-color: #4caf50; background: #f4fbf0; }
       .model-badge {
@@ -128,9 +126,8 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       .actions button:hover { background: #f0f0f0; }
       .error { color: #c0392b; font-size: 13px; }
 
-      .unc-medium    { background: #fff3cd; border-radius: 3px; padding: 0 2px; }
+      .unc-medium    { background: #ffe066; border-radius: 3px; padding: 0 2px; }
       .unc-high      { background: #ffd6a5; border-radius: 3px; padding: 0 2px; }
-      .unc-very-high { background: #ffadad; border-radius: 3px; padding: 0 2px; }
 
       /* Clickable sentences (after scoring) */
       .sentence { cursor: pointer; border-radius: 3px; position: relative; }
@@ -174,7 +171,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       }
       .btn-regen:hover { color: #555; }
       .edits-body { line-height: 1.6; font-size: 14px; margin-bottom: 10px; }
-      .edited-sentence { background: #f0f0f0; border-radius: 3px; padding: 0 2px; }
+      .edited-sentence { outline: 1px dashed #bbb; border-radius: 3px; padding: 0 2px; }
       .edits-actions { display: flex; gap: 8px; }
       .edits-actions button {
         padding: 5px 12px; border-radius: 6px; border: 1px solid #ddd;
@@ -184,7 +181,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
     </style>
     <div class="panel" id="panel">
       <div class="header">
-        <span class="title">Stylo</span>
+        <span class="title">PocketStylo</span>
         <button class="close" id="btn-close">✕</button>
       </div>
       <div class="body" id="body"></div>
@@ -275,7 +272,7 @@ function showSummary(result: SummaryResult) {
   shadow.getElementById("actions")!.style.display = "flex";
   shadow.getElementById("scoring-note")!.style.display = "block";
   shadow.getElementById("edits-panel")!.classList.remove("visible");
-  const label = result.style ? `Stylo — ${result.style}` : "Stylo";
+  const label = result.style ? `PocketStylo — ${result.style}` : "PocketStylo";
   shadow.querySelector(".title")!.textContent = label;
   wireButtons(shadow, result);
 }
@@ -346,7 +343,7 @@ function showComparison(result: SummaryResult) {
     btnCmp.disabled = true;
   }
   const cmpScoring = shadow.getElementById("scoring-comparison") as HTMLElement;
-  cmpScoring.style.display = "none";
+  cmpScoring.style.display = result.summary ? "block" : "none";
 
   wirePreferenceButtons(shadow);
 }
@@ -468,10 +465,15 @@ async function saveItem(result: SummaryResult) {
   savedItems.push({ ...result, savedAt: Date.now() });
   await chrome.storage.local.set({ savedItems });
 
-  const { shadow } = getOrCreateHost();
+  const { host, shadow } = getOrCreateHost();
   const btn = shadow.getElementById("btn-save") as HTMLButtonElement;
   btn.textContent = "Saved ✓";
   btn.disabled = true;
+  btn.style.background = "#4caf50";
+  btn.style.color = "#fff";
+  btn.style.borderColor = "#4caf50";
+
+  setTimeout(() => host.remove(), 2000);
 }
 
 async function savePreference(preferred: "original" | "comparison") {
@@ -505,7 +507,7 @@ function requestEdits(result: SummaryResult) {
 
   const highUncertaintySentences = [
     ...(lastOriginalScore?.sentence_results ?? [])
-      .filter((s) => s.uncertainty_band === "high" || s.uncertainty_band === "very_high")
+      .filter((s) => s.uncertainty_band === "high")
       .map((s) => s.sentence_text),
     ...userSelectedSentences,
   ].filter((v, i, arr) => arr.indexOf(v) === i); // deduplicate
@@ -529,7 +531,7 @@ function collapseToSingleView(text: string, style?: string) {
   body.textContent = text;
   body.style.display = "block";
   shadow.getElementById("actions")!.style.display = "flex";
-  const label = style ? `Stylo — ${style}` : "Stylo";
+  const label = style ? `PocketStylo — ${style}` : "PocketStylo";
   shadow.querySelector(".title")!.textContent = label;
 
   // Re-score the accepted text so sentence spans and click handlers come back
