@@ -1,6 +1,8 @@
 import type { ScoreResult, SentenceScore, SummaryResult } from "./types";
 
-const SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
+const LOCAL_SCORING_URL  = "http://localhost:7860/score";
+const REMOTE_SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
+const LOCAL_TIMEOUT_MS   = 2000;
 
 // chrome.tabs.sendMessage rejects if the content script isn't loaded yet
 // (e.g. tab was open before the extension was installed/reloaded). Safe to ignore.
@@ -247,20 +249,17 @@ async function fetchSummary(text: string, model: string, apiKey: string, stylePr
 }
 
 async function fetchScore(source: string, summary: string, token: string): Promise<ScoreResult> {
-  const res = await fetch(SCORING_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Token": token,
-    },
-    body: JSON.stringify({
-      source,
-      summary,
-      sample_count: 10,
-      seed: 0,
-      compute_consistency: false,
-    }),
+  const body = JSON.stringify({
+    source,
+    summary,
+    sample_count: 10,
+    seed: 0,
+    compute_consistency: false,
   });
+
+  // Try local Docker server first; fall back to remote on any failure or timeout
+  const res = await fetchScoreFrom(LOCAL_SCORING_URL, token, body, LOCAL_TIMEOUT_MS)
+    .catch(() => fetchScoreFrom(REMOTE_SCORING_URL, token, body));
 
   if (!res.ok) throw new Error(`Scoring error: ${res.status} ${res.statusText}`);
   const raw = await res.json();
@@ -270,4 +269,23 @@ async function fetchScore(source: string, summary: string, token: string): Promi
     : [];
 
   return { sentence_results, raw };
+}
+
+async function fetchScoreFrom(url: string, token: string, body: string, timeoutMs?: number): Promise<Response> {
+  const controller = timeoutMs ? new AbortController() : undefined;
+  const timer = timeoutMs && controller
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : undefined;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Token": token },
+      body,
+      signal: controller?.signal,
+    });
+    return res;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
