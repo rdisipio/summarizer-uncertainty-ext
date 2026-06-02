@@ -2,7 +2,6 @@ import type { ScoreResult, SentenceScore, SummaryResult } from "./types";
 
 const LOCAL_SCORING_URL  = "http://localhost:7860/score";
 const REMOTE_SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
-const LOCAL_TIMEOUT_MS   = 2000;
 
 // chrome.tabs.sendMessage rejects if the content script isn't loaded yet
 // (e.g. tab was open before the extension was installed/reloaded). Safe to ignore.
@@ -29,7 +28,7 @@ const MENU_ITEMS: { id: SummaryStyle; title: string }[] = [
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "stylo-parent",
-    title: "Summarize with Stylo",
+    title: "Summarize with PocketStylo",
     contexts: ["selection"],
   });
   for (const item of MENU_ITEMS) {
@@ -248,21 +247,6 @@ async function fetchSummary(text: string, model: string, apiKey: string, stylePr
   return data.choices[0].message.content as string;
 }
 
-async function fetchWithTimeout(url: string, token: string, body: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Token": token },
-      body,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function fetchScore(source: string, summary: string, token: string): Promise<ScoreResult> {
   const body = JSON.stringify({
     source,
@@ -272,16 +256,19 @@ async function fetchScore(source: string, summary: string, token: string): Promi
     compute_consistency: false,
   });
 
-  // Try local server first; fall back to remote on network error, timeout, or non-2xx
-  const res = await fetchWithTimeout(LOCAL_SCORING_URL, token, body, LOCAL_TIMEOUT_MS)
-    .then((r) => { if (!r.ok) throw new Error(`local:${r.status}`); return r; })
-    .catch(() => fetch(REMOTE_SCORING_URL, {
+  const makeRequest = (url: string) =>
+    fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Api-Token": token },
       body,
-    }));
+    }).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r; });
 
-  if (!res.ok) throw new Error(`Scoring error: ${res.status} ${res.statusText}`);
+  // Fire both simultaneously; use whichever responds first successfully.
+  const res = await Promise.any([
+    makeRequest(LOCAL_SCORING_URL),
+    makeRequest(REMOTE_SCORING_URL),
+  ]);
+
   const raw = await res.json();
 
   const sentence_results: SentenceScore[] = Array.isArray(raw?.sentence_results)

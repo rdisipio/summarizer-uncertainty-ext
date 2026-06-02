@@ -9,9 +9,9 @@ export interface SentenceScore {
   sentence_index: number;
   sentence_text: string;
   uncertainty_score: number;
-  uncertainty_band: "low" | "medium" | "high" | "very_high" | string;
+  uncertainty_band: "low" | "mid" | "high" | string;
   ambiguity_score: number;
-  ambiguity_band: "low" | "medium" | "high" | "very_high" | string;
+  ambiguity_band: "low" | "mid" | "high" | string;
 }
 
 export interface ScoreResult {

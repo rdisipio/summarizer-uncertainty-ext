@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Stylo",
+  "name": "PocketStylo",
   "version": "0.1.0",
   "description": "Uncertainty-aware text summarization",
   "permissions": ["contextMenus", "storage", "activeTab", "scripting"],

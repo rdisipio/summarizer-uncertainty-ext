@@ -135,12 +135,8 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       .sentence.user-flagged { outline: 2px solid #7c3aed; background: #f5f3ff; padding: 0 2px; }
 
       /* Uncertainty tooltip */
-      .sentence::after {
-        content: attr(data-tooltip);
-        position: absolute;
-        bottom: calc(100% + 5px);
-        left: 50%;
-        transform: translateX(-50%);
+      #tooltip-popup {
+        position: fixed;
         background: #2c2c2c;
         color: #f5f5f5;
         font-size: 11px;
@@ -151,9 +147,8 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.12s ease;
-        z-index: 10;
+        z-index: 2147483647;
       }
-      .sentence:hover::after { opacity: 1; }
 
       /* Suggest edits panel */
       .edits-panel {
@@ -164,6 +159,8 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       }
       .edits-panel.visible { display: block; }
       .edits-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .col-header .model-badge { margin-bottom: 0; }
       .edits-label { font-size: 11px; font-weight: 600; color: #888; }
       .btn-regen {
         background: none; border: none; cursor: pointer; font-size: 14px;
@@ -190,7 +187,10 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       </div>
       <div class="compare-grid" id="compare-grid">
         <div class="compare-col" id="col-original">
-          <div class="model-badge" id="badge-original"></div>
+          <div class="col-header">
+            <div class="model-badge" id="badge-original"></div>
+            <button class="btn-regen" id="btn-regen-original" title="Regenerate">↺</button>
+          </div>
           <div class="col-body" id="body-original"></div>
           <div class="col-scoring" id="scoring-original">
             <span class="spinner"></span>Scoring…
@@ -225,6 +225,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         </div>
       </div>
     </div>
+    <div id="tooltip-popup"></div>
   `;
 
   shadow.getElementById("btn-close")!.addEventListener("click", () => host!.remove());
@@ -408,7 +409,30 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
     })
     .join(" ");
 
+  const { shadow } = getOrCreateHost();
+  const tooltipEl = shadow.getElementById("tooltip-popup") as HTMLElement;
+
   el.querySelectorAll<HTMLSpanElement>(".sentence").forEach((span) => {
+    span.addEventListener("mouseenter", () => {
+      tooltipEl.textContent = span.dataset.tooltip ?? "";
+    });
+
+    span.addEventListener("mousemove", (e) => {
+      const tipRect = tooltipEl.getBoundingClientRect();
+      const gap = 12;
+      let top = e.clientY - tipRect.height - gap;
+      let left = e.clientX + gap;
+      if (top < 4) top = e.clientY + gap;
+      left = Math.max(4, Math.min(left, window.innerWidth - tipRect.width - 4));
+      tooltipEl.style.top = `${top}px`;
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.opacity = "1";
+    });
+
+    span.addEventListener("mouseleave", () => {
+      tooltipEl.style.opacity = "0";
+    });
+
     span.addEventListener("click", () => {
       const text = span.dataset.sentence ?? "";
       if (userSelectedSentences.has(text)) {
@@ -441,6 +465,12 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
     btnOrig.classList.add("chosen");
     btnOrig.textContent = "Preferred ✓";
     btnCmp.disabled = true;
+  };
+
+  (shadow.getElementById("btn-regen-original") as HTMLButtonElement).onclick = () => {
+    if (!originalResult) return;
+    chrome.runtime.sendMessage({ type: "REGEN_LEFT_REQUEST", source: originalResult.source, style: originalResult.style });
+    showRegenLeft({ source: originalResult.source, summary: "", model: "…" });
   };
 
   btnCmp.onclick = () => {
