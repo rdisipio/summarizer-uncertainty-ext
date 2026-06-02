@@ -198,7 +198,10 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
           <button class="prefer-btn" id="prefer-original">I prefer this</button>
         </div>
         <div class="compare-col" id="col-comparison">
-          <div class="model-badge" id="badge-comparison"></div>
+          <div class="col-header">
+            <div class="model-badge" id="badge-comparison"></div>
+            <button class="btn-regen" id="btn-regen-comparison" title="Regenerate">↺</button>
+          </div>
           <div class="col-body" id="body-comparison">
             <span class="spinner"></span>Generating…
           </div>
@@ -471,6 +474,12 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
     if (!originalResult) return;
     chrome.runtime.sendMessage({ type: "REGEN_LEFT_REQUEST", source: originalResult.source, style: originalResult.style });
     showRegenLeft({ source: originalResult.source, summary: "", model: "…" });
+  };
+
+  (shadow.getElementById("btn-regen-comparison") as HTMLButtonElement).onclick = () => {
+    if (!originalResult) return;
+    chrome.runtime.sendMessage({ type: "COMPARE_REQUEST", source: originalResult.source });
+    showComparison({ source: originalResult.source, summary: "", model: "…" });
   };
 
   btnCmp.onclick = () => {
