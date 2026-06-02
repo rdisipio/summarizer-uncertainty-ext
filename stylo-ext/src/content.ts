@@ -468,6 +468,8 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
     btnOrig.classList.add("chosen");
     btnOrig.textContent = "Preferred ✓";
     btnCmp.disabled = true;
+    const chosen = originalResult;
+    setTimeout(() => chosen && collapseToSingleView(chosen.summary, chosen.style), 2000);
   };
 
   (shadow.getElementById("btn-regen-original") as HTMLButtonElement).onclick = () => {
@@ -495,6 +497,8 @@ function wirePreferenceButtons(shadow: ShadowRoot) {
       lastOriginalScore = null;
       originalScoreStale = true;
     }
+    const chosen = originalResult;
+    setTimeout(() => chosen && collapseToSingleView(chosen.summary, chosen.style), 2000);
   };
 }
 
