@@ -126,9 +126,30 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       .unc-very-high { background: #ffadad; border-radius: 3px; padding: 0 2px; }
 
       /* Clickable sentences (after scoring) */
-      .sentence { cursor: pointer; border-radius: 3px; }
+      .sentence { cursor: pointer; border-radius: 3px; position: relative; }
       .sentence:hover { outline: 1px dashed #bbb; }
       .sentence.user-flagged { outline: 2px solid #7c3aed; background: #f5f3ff; padding: 0 2px; }
+
+      /* Uncertainty tooltip */
+      .sentence::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 5px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #2c2c2c;
+        color: #f5f5f5;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 3px 8px;
+        border-radius: 4px;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.12s ease;
+        z-index: 10;
+      }
+      .sentence:hover::after { opacity: 1; }
 
       /* Suggest edits panel */
       .edits-panel {
@@ -375,8 +396,10 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
       const userCls = userSelectedSentences.has(s.sentence_text) ? " user-flagged" : "";
       const cls = ["sentence", bandCls, userCls].filter(Boolean).join(" ");
       const text = escapeHtml(s.sentence_text);
-      const title = bandCls ? `${s.uncertainty_band} uncertainty — click to flag for editing` : "Click to flag for editing";
-      return `<span class="${cls}" data-sentence="${escapeHtml(s.sentence_text)}" title="${title}">${text}</span>`;
+      const score_label = s.uncertainty_score != null
+        ? `Uncertainty: ${s.uncertainty_score.toFixed(1)} (${s.uncertainty_band})`
+        : s.uncertainty_band;
+      return `<span class="${cls}" data-sentence="${escapeHtml(s.sentence_text)}" data-tooltip="${escapeHtml(score_label)}">${text}</span>`;
     })
     .join(" ");
 
