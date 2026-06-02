@@ -1,6 +1,8 @@
 import type { ScoreResult, SentenceScore, SummaryResult } from "./types";
 
-const SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
+const LOCAL_SCORING_URL  = "http://localhost:7860/score";
+const REMOTE_SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
+const LOCAL_TIMEOUT_MS   = 2000;
 
 // chrome.tabs.sendMessage rejects if the content script isn't loaded yet
 // (e.g. tab was open before the extension was installed/reloaded). Safe to ignore.
@@ -246,6 +248,21 @@ async function fetchSummary(text: string, model: string, apiKey: string, stylePr
   return data.choices[0].message.content as string;
 }
 
+async function fetchWithTimeout(url: string, token: string, body: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Token": token },
+      body,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchScore(source: string, summary: string, token: string): Promise<ScoreResult> {
   const body = JSON.stringify({
     source,
@@ -255,11 +272,14 @@ async function fetchScore(source: string, summary: string, token: string): Promi
     compute_consistency: false,
   });
 
-  const res = await fetch(SCORING_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Api-Token": token },
-    body,
-  });
+  // Try local server first; fall back to remote on network error, timeout, or non-2xx
+  const res = await fetchWithTimeout(LOCAL_SCORING_URL, token, body, LOCAL_TIMEOUT_MS)
+    .then((r) => { if (!r.ok) throw new Error(`local:${r.status}`); return r; })
+    .catch(() => fetch(REMOTE_SCORING_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Token": token },
+      body,
+    }));
 
   if (!res.ok) throw new Error(`Scoring error: ${res.status} ${res.statusText}`);
   const raw = await res.json();
