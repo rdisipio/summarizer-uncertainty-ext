@@ -9,6 +9,13 @@ const BAND_CLASS: Record<string, string> = {
   very_high: "unc-very-high",
 };
 
+const BAND_LABEL: Record<string, string> = {
+  low: "low",
+  medium: "mid",
+  high: "high",
+  very_high: "very high",
+};
+
 // ── Shadow DOM setup ──────────────────────────────────────────────────────────
 
 function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
@@ -396,9 +403,10 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
       const userCls = userSelectedSentences.has(s.sentence_text) ? " user-flagged" : "";
       const cls = ["sentence", bandCls, userCls].filter(Boolean).join(" ");
       const text = escapeHtml(s.sentence_text);
+      const bandLabel = BAND_LABEL[s.uncertainty_band] ?? s.uncertainty_band;
       const score_label = s.uncertainty_score != null
-        ? `Uncertainty: ${s.uncertainty_score.toFixed(1)} (${s.uncertainty_band})`
-        : s.uncertainty_band;
+        ? `Uncertainty: ${bandLabel} (${Math.round(s.uncertainty_score)}%)`
+        : `Uncertainty: ${bandLabel}`;
       return `<span class="${cls}" data-sentence="${escapeHtml(s.sentence_text)}" data-tooltip="${escapeHtml(score_label)}">${text}</span>`;
     })
     .join(" ");
