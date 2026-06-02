@@ -1,7 +1,7 @@
 import type { ScoreResult, SentenceScore, SummaryResult } from "./types";
 
 const LOCAL_SCORING_URL  = "http://localhost:7860/score";
-const REMOTE_SCORING_URL = "https://rdisipio-sentence-uncertainty.hf.space/score";
+const REMOTE_SCORING_URL = "https://riccardo-disipio--summarizer-uncertainty-web.modal.run/score";
 
 // chrome.tabs.sendMessage rejects if the content script isn't loaded yet
 // (e.g. tab was open before the extension was installed/reloaded). Safe to ignore.
