@@ -124,6 +124,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         color: #333;
       }
       .actions button:hover { background: #f0f0f0; }
+      .demo-note { font-size: 11px; color: #bbb; margin-top: 8px; }
       .error { color: #c0392b; font-size: 13px; }
 
       .unc-medium    { background: #ffe066; border-radius: 3px; padding: 0 2px; }
@@ -216,6 +217,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
         <button id="btn-compare">Compare models</button>
         <button id="btn-edit">Suggest edits</button>
       </div>
+      <div class="demo-note">Demo — no data is stored.</div>
       <div class="edits-panel" id="edits-panel">
         <div class="edits-header">
           <span class="edits-label">Suggested revision</span>
