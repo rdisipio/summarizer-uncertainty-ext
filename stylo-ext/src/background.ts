@@ -26,19 +26,21 @@ const MENU_ITEMS: { id: SummaryStyle; title: string }[] = [
 ];
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "stylo-parent",
-    title: "Summarize with PocketStylo",
-    contexts: ["selection"],
-  });
-  for (const item of MENU_ITEMS) {
+  chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: item.id,
-      parentId: "stylo-parent",
-      title: item.title,
+      id: "stylo-parent",
+      title: "Summarize with PocketStylo",
       contexts: ["selection"],
     });
-  }
+    for (const item of MENU_ITEMS) {
+      chrome.contextMenus.create({
+        id: item.id,
+        parentId: "stylo-parent",
+        title: item.title,
+        contexts: ["selection"],
+      });
+    }
+  });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
