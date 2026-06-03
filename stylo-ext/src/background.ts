@@ -248,10 +248,14 @@ async function fetchSummary(text: string, model: string, apiKey: string, stylePr
 }
 
 async function fetchScore(source: string, summary: string, token: string): Promise<ScoreResult> {
+  const { scoringUrl, sampleCount } = await chrome.storage.local.get(["scoringUrl", "sampleCount"]);
+  const remoteUrl = (scoringUrl as string | undefined) ?? REMOTE_SCORING_URL;
+  const samples   = (sampleCount as number | undefined) ?? 10;
+
   const body = JSON.stringify({
     source,
     summary,
-    sample_count: 10,
+    sample_count: samples,
     seed: 0,
     compute_consistency: false,
   });
@@ -266,7 +270,7 @@ async function fetchScore(source: string, summary: string, token: string): Promi
   // Fire both simultaneously; use whichever responds first successfully.
   const res = await Promise.any([
     makeRequest(LOCAL_SCORING_URL),
-    makeRequest(REMOTE_SCORING_URL),
+    makeRequest(remoteUrl),
   ]);
 
   const raw = await res.json();

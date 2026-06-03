@@ -14,7 +14,7 @@
       }
       h1 { font-size: 20px; margin-bottom: 24px; }
       label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-      input[type="password"], input[type="text"] {
+      input[type="password"], input[type="text"], input[type="number"] {
         width: 100%;
         padding: 8px 10px;
         border: 1px solid #ccc;
@@ -59,6 +59,16 @@
       <div class="field-group">
         <label for="compare-model">Comparison model</label>
         <input type="text" id="compare-model" placeholder="openai/gpt-oss-20b" autocomplete="off" />
+      </div>
+
+      <div class="field-group">
+        <label for="scoring-url">Scoring endpoint URL</label>
+        <input type="text" id="scoring-url" placeholder="https://…/score" autocomplete="off" />
+      </div>
+
+      <div class="field-group">
+        <label for="sample-count">Sample count</label>
+        <input type="number" id="sample-count" placeholder="10" min="1" max="100" autocomplete="off" />
       </div>
 
       <button type="submit">Save</button>
