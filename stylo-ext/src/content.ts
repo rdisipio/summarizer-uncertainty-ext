@@ -734,7 +734,6 @@ function startInlineEdit(span: HTMLSpanElement) {
   const originalText = span.dataset.sentence ?? "";
   const currentText = span.textContent ?? originalText;
 
-  // contenteditable span wraps within the panel's text flow — no overflow
   const editor = document.createElement("span");
   editor.contentEditable = "true";
   editor.textContent = currentText;
@@ -742,20 +741,22 @@ function startInlineEdit(span: HTMLSpanElement) {
 
   span.textContent = "";
   span.appendChild(editor);
+  // Focus without forcing a selection — cursor lands where the double-click was
   editor.focus();
 
-  // Select all text in the editor
-  const sel = window.getSelection();
-  const r = document.createRange();
-  r.selectNodeContents(editor);
-  sel?.removeAllRanges();
-  sel?.addRange(r);
-
   let done = false;
+
+  const { host, shadow } = getOrCreateHost();
+
+  const cleanup = () => {
+    shadow.removeEventListener("mousedown", onShadowDown, true);
+    document.removeEventListener("mousedown", onDocDown, true);
+  };
 
   const accept = () => {
     if (done) return;
     done = true;
+    cleanup();
     const newText = editor.textContent?.trim() ?? "";
     if (!newText || newText === currentText) {
       span.textContent = currentText;
@@ -778,28 +779,45 @@ function startInlineEdit(span: HTMLSpanElement) {
   const cancel = () => {
     if (done) return;
     done = true;
+    cleanup();
     span.textContent = currentText;
   };
+
+  // Clicks inside the shadow: end editing only if the target is outside this span
+  const onShadowDown = (e: Event) => {
+    if (!span.contains(e.target as Node)) accept();
+  };
+
+  // Clicks on the page: shadow events are retargeted to the host element at document level,
+  // so skip those — the shadow listener already handles them
+  const onDocDown = (e: Event) => {
+    if (e.target !== host) accept();
+  };
+
+  shadow.addEventListener("mousedown", onShadowDown, true);
+  document.addEventListener("mousedown", onDocDown, true);
+
+  // Stop clicks/dblclicks on the editor from bubbling to the sentence span handlers
+  editor.addEventListener("mousedown", (e) => e.stopPropagation());
+  editor.addEventListener("click",     (e) => e.stopPropagation());
+  editor.addEventListener("dblclick",  (e) => e.stopPropagation());
 
   editor.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); accept(); }
     if (e.key === "Escape") { e.preventDefault(); cancel(); }
   });
 
-  // Strip HTML on paste — only accept plain text
   editor.addEventListener("paste", (e) => {
     e.preventDefault();
     const text = e.clipboardData?.getData("text/plain") ?? "";
-    const sel2 = window.getSelection();
-    if (sel2?.rangeCount) {
-      const pr = sel2.getRangeAt(0);
-      pr.deleteContents();
-      pr.insertNode(document.createTextNode(text));
-      pr.collapse(false);
+    const sel = window.getSelection();
+    if (sel?.rangeCount) {
+      const r = sel.getRangeAt(0);
+      r.deleteContents();
+      r.insertNode(document.createTextNode(text));
+      r.collapse(false);
     }
   });
-
-  editor.addEventListener("blur", accept);
 }
 
 function splitSentences(text: string): string[] {
