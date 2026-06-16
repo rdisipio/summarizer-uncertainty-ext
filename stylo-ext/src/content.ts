@@ -469,9 +469,26 @@ function captureSelection() {
   selectedElement = node instanceof Element ? node : (node.parentElement ?? null);
 }
 
+function ensurePageStyle() {
+  if (document.getElementById("pocket-stylo-page-style")) return;
+  const style = document.createElement("style");
+  style.id = "pocket-stylo-page-style";
+  style.textContent = `
+    .pocket-stylo-edited {
+      border-left: 3px solid #4caf50 !important;
+      padding-left: 8px !important;
+      background: rgba(76, 175, 80, 0.06) !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function replaceInPage(result: SummaryResult) {
   if (!selectedElement) return;
   selectedElement.textContent = result.summary;
+  ensurePageStyle();
+  selectedElement.classList.add("pocket-stylo-edited");
+  selectedElement.setAttribute("title", "Edited by PocketStylo");
   selectedElement = null;
 
   const { host, shadow } = getOrCreateHost();
