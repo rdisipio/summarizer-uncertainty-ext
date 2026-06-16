@@ -214,6 +214,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       </div>
       <div class="actions" id="actions" style="display:none">
         <button id="btn-save">Save</button>
+        <button id="btn-replace">Replace in page</button>
         <button id="btn-compare">Compare models</button>
         <button id="btn-edit">Suggest edits</button>
       </div>
@@ -240,6 +241,7 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
+let selectedElement: Element | null = null;
 let originalResult: SummaryResult | null = null;
 let comparisonResult: SummaryResult | null = null;
 let lastOriginalScore: ScoreResult | null = null;
@@ -451,6 +453,37 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
   });
 }
 
+// ── In-page replacement ───────────────────────────────────────────────────────
+
+function captureSelection() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) { selectedElement = null; return; }
+  const range = sel.getRangeAt(0);
+  const node = range.commonAncestorContainer;
+  let el: Node | null = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  const blockTags = new Set(["P", "DIV", "ARTICLE", "SECTION", "LI", "BLOCKQUOTE", "TD", "H1", "H2", "H3", "H4", "H5", "H6"]);
+  while (el instanceof Element) {
+    if (blockTags.has(el.tagName)) { selectedElement = el; return; }
+    el = el.parentElement;
+  }
+  selectedElement = node instanceof Element ? node : (node.parentElement ?? null);
+}
+
+function replaceInPage(result: SummaryResult) {
+  if (!selectedElement) return;
+  selectedElement.textContent = result.summary;
+  selectedElement = null;
+
+  const { host, shadow } = getOrCreateHost();
+  const btn = shadow.getElementById("btn-replace") as HTMLButtonElement;
+  btn.textContent = "Replaced ✓";
+  btn.disabled = true;
+  btn.style.background = "#4caf50";
+  btn.style.color = "#fff";
+  btn.style.borderColor = "#4caf50";
+  setTimeout(() => host.remove(), 2000);
+}
+
 // ── Button wiring ─────────────────────────────────────────────────────────────
 
 function wireButtons(shadow: ShadowRoot, _initial: SummaryResult) {
@@ -458,6 +491,13 @@ function wireButtons(shadow: ShadowRoot, _initial: SummaryResult) {
   shadow.getElementById("btn-save")!.onclick    = () => originalResult && saveItem(originalResult);
   shadow.getElementById("btn-compare")!.onclick = () => originalResult && requestComparison(originalResult);
   shadow.getElementById("btn-edit")!.onclick    = () => originalResult && requestEdits(originalResult);
+
+  const btnReplace = shadow.getElementById("btn-replace") as HTMLButtonElement;
+  btnReplace.textContent = "Replace in page";
+  btnReplace.disabled = false;
+  btnReplace.removeAttribute("style");
+  btnReplace.style.display = selectedElement ? "" : "none";
+  btnReplace.onclick = () => originalResult && replaceInPage(originalResult);
 }
 
 function wirePreferenceButtons(shadow: ShadowRoot) {
@@ -632,7 +672,7 @@ function splitSentences(text: string): string[] {
 
 chrome.runtime.onMessage.addListener((msg: ExtensionMessage) => {
   switch (msg.type) {
-    case "STYLO_LOADING":         showLoading(); break;
+    case "STYLO_LOADING":         captureSelection(); showLoading(); break;
     case "STYLO_ERROR":           showError(msg.message); break;
     case "SHOW_SUMMARY":          showSummary(msg.result); break;
     case "UPDATE_SCORE":          applyScores(msg.score); break;
