@@ -138,10 +138,15 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
 
       /* Inline sentence editor (double-click to activate) */
       .sentence-editor {
-        font: inherit; color: inherit; border: none;
+        display: inline;
+        outline: none;
+        cursor: text;
+        white-space: pre-wrap;
+        word-break: break-word;
         border-bottom: 2px solid #7c3aed;
-        background: #f5f3ff; border-radius: 3px 3px 0 0;
-        padding: 1px 2px; outline: none; min-width: 6ch;
+        background: #f5f3ff;
+        border-radius: 3px 3px 0 0;
+        padding: 0 2px;
       }
 
       /* Uncertainty tooltip */
@@ -729,37 +734,40 @@ function startInlineEdit(span: HTMLSpanElement) {
   const originalText = span.dataset.sentence ?? "";
   const currentText = span.textContent ?? originalText;
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = currentText;
-  input.className = "sentence-editor";
-  input.style.width = Math.max(currentText.length, 10) + "ch";
+  // contenteditable span wraps within the panel's text flow — no overflow
+  const editor = document.createElement("span");
+  editor.contentEditable = "true";
+  editor.textContent = currentText;
+  editor.className = "sentence-editor";
 
   span.textContent = "";
-  span.appendChild(input);
-  input.focus();
-  input.select();
+  span.appendChild(editor);
+  editor.focus();
+
+  // Select all text in the editor
+  const sel = window.getSelection();
+  const r = document.createRange();
+  r.selectNodeContents(editor);
+  sel?.removeAllRanges();
+  sel?.addRange(r);
 
   let done = false;
 
   const accept = () => {
     if (done) return;
     done = true;
-    const newText = input.value.trim();
+    const newText = editor.textContent?.trim() ?? "";
     if (!newText || newText === currentText) {
       span.textContent = currentText;
       return;
     }
-    // Update the summary string
     if (originalResult) {
       originalResult = { ...originalResult, summary: originalResult.summary.replace(currentText, newText) };
       originalScoreStale = true;
     }
-    // Remove the old text from tracking sets; add the new text to user-edited
     userSelectedSentences.delete(currentText);
     userEditedSentences.delete(currentText);
     userEditedSentences.add(newText);
-    // Update the span in place — no re-render needed
     span.textContent = newText;
     span.dataset.sentence = newText;
     span.dataset.tooltip = "Your edit — double-click to revise";
@@ -773,11 +781,25 @@ function startInlineEdit(span: HTMLSpanElement) {
     span.textContent = currentText;
   };
 
-  input.addEventListener("keydown", (e) => {
+  editor.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); accept(); }
     if (e.key === "Escape") { e.preventDefault(); cancel(); }
   });
-  input.addEventListener("blur", accept);
+
+  // Strip HTML on paste — only accept plain text
+  editor.addEventListener("paste", (e) => {
+    e.preventDefault();
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    const sel2 = window.getSelection();
+    if (sel2?.rangeCount) {
+      const pr = sel2.getRangeAt(0);
+      pr.deleteContents();
+      pr.insertNode(document.createTextNode(text));
+      pr.collapse(false);
+    }
+  });
+
+  editor.addEventListener("blur", accept);
 }
 
 function splitSentences(text: string): string[] {
