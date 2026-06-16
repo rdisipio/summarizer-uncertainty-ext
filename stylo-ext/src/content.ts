@@ -134,6 +134,15 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
       .sentence { cursor: pointer; border-radius: 3px; position: relative; }
       .sentence:hover { outline: 1px dashed #bbb; }
       .sentence.user-flagged { outline: 2px solid #7c3aed; background: #f5f3ff; padding: 0 2px; }
+      .sentence.user-edited { background: #e8f5e9; border-radius: 3px; padding: 0 2px; border-bottom: 1px solid #81c784; }
+
+      /* Inline sentence editor (double-click to activate) */
+      .sentence-editor {
+        font: inherit; color: inherit; border: none;
+        border-bottom: 2px solid #7c3aed;
+        background: #f5f3ff; border-radius: 3px 3px 0 0;
+        padding: 1px 2px; outline: none; min-width: 6ch;
+      }
 
       /* Uncertainty tooltip */
       #tooltip-popup {
@@ -242,12 +251,14 @@ function getOrCreateHost(): { host: HTMLElement; shadow: ShadowRoot } {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let selectedElement: Element | null = null;
+let selectedRange: Range | null = null;
 let originalResult: SummaryResult | null = null;
 let comparisonResult: SummaryResult | null = null;
 let lastOriginalScore: ScoreResult | null = null;
 let originalScoreStale = false;
 let preferredSide: "left" | "right" | null = null;
 const userSelectedSentences = new Set<string>();
+const userEditedSentences = new Set<string>(); // sentences whose text was typed by the user
 
 // ── Render helpers ────────────────────────────────────────────────────────────
 
@@ -272,6 +283,7 @@ function showSummary(result: SummaryResult) {
   originalScoreStale = false;
   preferredSide = null;
   userSelectedSentences.clear();
+  userEditedSentences.clear();
   const { shadow } = getOrCreateHost();
   shadow.getElementById("panel")!.classList.remove("comparing");
   shadow.getElementById("compare-grid")!.classList.remove("visible");
@@ -404,15 +416,21 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
   if (!score.sentence_results.length) return;
   el.innerHTML = score.sentence_results
     .map((s) => {
-      const bandCls = BAND_CLASS[s.uncertainty_band] ?? "";
-      const userCls = userSelectedSentences.has(s.sentence_text) ? " user-flagged" : "";
-      const cls = ["sentence", bandCls, userCls].filter(Boolean).join(" ");
+      const isUserEdited = userEditedSentences.has(s.sentence_text);
+      const bandCls = isUserEdited ? "" : (BAND_CLASS[s.uncertainty_band] ?? "");
+      const userFlaggedCls = userSelectedSentences.has(s.sentence_text) ? " user-flagged" : "";
+      const userEditedCls = isUserEdited ? " user-edited" : "";
+      const cls = ["sentence", bandCls, userFlaggedCls, userEditedCls].filter(Boolean).join(" ");
       const text = escapeHtml(s.sentence_text);
-      const bandLabel = BAND_LABEL[s.uncertainty_band] ?? s.uncertainty_band;
-      const score_label = s.uncertainty_score != null
-        ? `Uncertainty: ${bandLabel} (${Math.round(s.uncertainty_score)}%)`
-        : `Uncertainty: ${bandLabel}`;
-      return `<span class="${cls}" data-sentence="${escapeHtml(s.sentence_text)}" data-tooltip="${escapeHtml(score_label)}">${text}</span>`;
+      const tooltipText = isUserEdited
+        ? "Your edit — double-click to revise"
+        : (() => {
+            const bandLabel = BAND_LABEL[s.uncertainty_band] ?? s.uncertainty_band;
+            return s.uncertainty_score != null
+              ? `Uncertainty: ${bandLabel} (${Math.round(s.uncertainty_score)}%)`
+              : `Uncertainty: ${bandLabel}`;
+          })();
+      return `<span class="${cls}" data-sentence="${escapeHtml(s.sentence_text)}" data-tooltip="${escapeHtml(tooltipText)}">${text}</span>`;
     })
     .join(" ");
 
@@ -440,15 +458,26 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
       tooltipEl.style.opacity = "0";
     });
 
+    // Single-click delayed so a double-click can cancel it
+    let clickTimer: ReturnType<typeof setTimeout> | null = null;
     span.addEventListener("click", () => {
-      const text = span.dataset.sentence ?? "";
-      if (userSelectedSentences.has(text)) {
-        userSelectedSentences.delete(text);
-        span.classList.remove("user-flagged");
-      } else {
-        userSelectedSentences.add(text);
-        span.classList.add("user-flagged");
-      }
+      clickTimer = setTimeout(() => {
+        const text = span.dataset.sentence ?? "";
+        if (userSelectedSentences.has(text)) {
+          userSelectedSentences.delete(text);
+          span.classList.remove("user-flagged");
+        } else {
+          userSelectedSentences.add(text);
+          span.classList.add("user-flagged");
+        }
+      }, 220);
+    });
+
+    // Double-click opens inline editor
+    span.addEventListener("dblclick", () => {
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      tooltipEl.style.opacity = "0";
+      startInlineEdit(span);
     });
   });
 }
@@ -457,9 +486,10 @@ function applyHighlights(el: HTMLElement, score: ScoreResult) {
 
 function captureSelection() {
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) { selectedElement = null; return; }
-  const range = sel.getRangeAt(0);
-  const node = range.commonAncestorContainer;
+  if (!sel || sel.rangeCount === 0) { selectedElement = null; selectedRange = null; return; }
+  // Clone before the panel appears and steals focus / clears the selection
+  selectedRange = sel.getRangeAt(0).cloneRange();
+  const node = selectedRange.commonAncestorContainer;
   let el: Node | null = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
   const blockTags = new Set(["P", "DIV", "ARTICLE", "SECTION", "LI", "BLOCKQUOTE", "TD", "H1", "H2", "H3", "H4", "H5", "H6"]);
   while (el instanceof Element) {
@@ -484,11 +514,25 @@ function ensurePageStyle() {
 }
 
 function replaceInPage(result: SummaryResult) {
-  if (!selectedElement) return;
-  selectedElement.textContent = result.summary;
+  if (!selectedRange && !selectedElement) return;
   ensurePageStyle();
-  selectedElement.classList.add("pocket-stylo-edited");
-  selectedElement.setAttribute("title", "Edited by PocketStylo");
+
+  if (selectedRange && !selectedRange.collapsed) {
+    // Replace exactly the selected text, leaving the rest of the paragraph intact
+    selectedRange.deleteContents();
+    selectedRange.insertNode(document.createTextNode(result.summary));
+    // Collapse the range so the cursor lands after the inserted text
+    selectedRange.collapse(false);
+  } else if (selectedElement) {
+    // Fallback: entire element was selected (e.g. triple-click)
+    selectedElement.textContent = result.summary;
+  }
+
+  if (selectedElement) {
+    selectedElement.classList.add("pocket-stylo-edited");
+    selectedElement.setAttribute("title", "Edited by PocketStylo");
+  }
+  selectedRange = null;
   selectedElement = null;
 
   const { host, shadow } = getOrCreateHost();
@@ -679,6 +723,61 @@ function showEdits(revised: string) {
   shadow.getElementById("btn-discard-edits")!.onclick = () => {
     shadow.getElementById("edits-panel")!.classList.remove("visible");
   };
+}
+
+function startInlineEdit(span: HTMLSpanElement) {
+  const originalText = span.dataset.sentence ?? "";
+  const currentText = span.textContent ?? originalText;
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = currentText;
+  input.className = "sentence-editor";
+  input.style.width = Math.max(currentText.length, 10) + "ch";
+
+  span.textContent = "";
+  span.appendChild(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+
+  const accept = () => {
+    if (done) return;
+    done = true;
+    const newText = input.value.trim();
+    if (!newText || newText === currentText) {
+      span.textContent = currentText;
+      return;
+    }
+    // Update the summary string
+    if (originalResult) {
+      originalResult = { ...originalResult, summary: originalResult.summary.replace(currentText, newText) };
+      originalScoreStale = true;
+    }
+    // Remove the old text from tracking sets; add the new text to user-edited
+    userSelectedSentences.delete(currentText);
+    userEditedSentences.delete(currentText);
+    userEditedSentences.add(newText);
+    // Update the span in place — no re-render needed
+    span.textContent = newText;
+    span.dataset.sentence = newText;
+    span.dataset.tooltip = "Your edit — double-click to revise";
+    span.classList.remove("unc-medium", "unc-high", "user-flagged");
+    span.classList.add("user-edited");
+  };
+
+  const cancel = () => {
+    if (done) return;
+    done = true;
+    span.textContent = currentText;
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); accept(); }
+    if (e.key === "Escape") { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener("blur", accept);
 }
 
 function splitSentences(text: string): string[] {
